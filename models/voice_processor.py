@@ -7,6 +7,16 @@ import threading
 import queue
 import time
 
+IS_PRODUCTION = os.environ.get('RENDER', False)
+
+if not IS_PRODUCTION:
+    import pyaudio  # Only import locally
+    # Local audio processing code
+else:
+    # Alternative implementation or stub for cloud deployment
+    def process_audio(*args, **kwargs):
+        return {"error": "Audio processing not available in cloud deployment"}
+        
 class VoiceProcessor:
     def __init__(self):
         """Initialize the voice processor with text-to-speech and speech-to-text capabilities."""
