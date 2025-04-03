@@ -7,16 +7,6 @@ import threading
 import queue
 import time
 
-IS_PRODUCTION = os.environ.get('RENDER', False)
-
-if not IS_PRODUCTION:
-    import pyaudio  # Only import locally
-    # Local audio processing code
-else:
-    # Alternative implementation or stub for cloud deployment
-    def process_audio(*args, **kwargs):
-        return {"error": "Audio processing not available in cloud deployment"}
-        
 class VoiceProcessor:
     def __init__(self):
         """Initialize the voice processor with text-to-speech and speech-to-text capabilities."""
@@ -24,7 +14,12 @@ class VoiceProcessor:
         self.recognizer = sr.Recognizer()
         
         # Initialize pygame for audio playback
-        pygame.mixer.init()
+        try:
+            pygame.mixer.init()
+            self.audio_enabled = True
+        except pygame.error:
+            print("Audio playback is not supported in this environment.")
+            self.audio_enabled = False
         
         # Audio processing queue
         self.audio_queue = queue.Queue()
@@ -38,6 +33,9 @@ class VoiceProcessor:
         
     def text_to_speech(self, text):
         """Convert text to speech and play it."""
+        if not self.audio_enabled:
+            print("Audio playback is disabled.")
+            return False
         try:
             # Generate temporary file path
             temp_file = os.path.join(self.temp_dir, f'speech_{time.time()}.mp3')
@@ -85,30 +83,33 @@ class VoiceProcessor:
     
     def _recognition_worker(self, callback):
         """Worker function for continuous speech recognition."""
-        with sr.Microphone() as source:
-            # Adjust for ambient noise
-            self.recognizer.adjust_for_ambient_noise(source)
-            
-            while self.is_listening:
-                try:
-                    # Listen for speech
-                    audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
-                    
-                    # Recognize speech using Google Speech Recognition
-                    text = self.recognizer.recognize_google(audio)
-                    
-                    if text:
-                        # Call the callback function with the recognized text
-                        callback(text)
+        try:
+            with sr.Microphone() as source:
+                # Adjust for ambient noise
+                self.recognizer.adjust_for_ambient_noise(source)
+                
+                while self.is_listening:
+                    try:
+                        # Listen for speech
+                        audio = self.recognizer.listen(source, timeout=1, phrase_time_limit=10)
                         
-                except sr.WaitTimeoutError:
-                    continue
-                except sr.UnknownValueError:
-                    continue
-                except sr.RequestError as e:
-                    print(f"Could not request results; {str(e)}")
-                except Exception as e:
-                    print(f"Error in speech recognition: {str(e)}")
+                        # Recognize speech using Google Speech Recognition
+                        text = self.recognizer.recognize_google(audio)
+                        
+                        if text:
+                            # Call the callback function with the recognized text
+                            callback(text)
+                            
+                    except sr.WaitTimeoutError:
+                        continue
+                    except sr.UnknownValueError:
+                        continue
+                    except sr.RequestError as e:
+                        print(f"Could not request results; {str(e)}")
+                    except Exception as e:
+                        print(f"Error in speech recognition: {str(e)}")
+        except Exception as e:
+            print("Microphone input is not supported in this environment.")
     
     def cleanup(self):
         """Clean up resources."""
